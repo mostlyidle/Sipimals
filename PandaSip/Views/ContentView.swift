@@ -141,7 +141,7 @@ struct ContentView: View {
                 }
             }
             HStack(alignment: .center) {
-                Text("Estimated hydration")
+                Text("Goal credit")
                     .font(.subheadline)
                     .foregroundStyle(SipTheme.muted)
                 Spacer(minLength: 4)
@@ -162,7 +162,7 @@ struct ContentView: View {
         Text("\(SipTheme.volume(creditedML)) mL")
             .font(.system(.largeTitle, design: .rounded, weight: .heavy))
             .contentTransition(.numericText())
-            .accessibilityLabel("\(SipTheme.volume(creditedML)) milliliters of estimated hydration")
+            .accessibilityLabel("\(SipTheme.volume(creditedML)) milliliters toward your daily goal")
     }
 
     private var goalText: some View {

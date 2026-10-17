@@ -82,6 +82,14 @@ struct SettingsView: View {
                         .foregroundStyle(SipTheme.muted)
                 }
 
+                Section("Privacy") {
+                    NavigationLink {
+                        PrivacyPolicyView()
+                    } label: {
+                        Label("Privacy Policy", systemImage: "hand.raised")
+                    }
+                }
+
                 Section {
                     Label("Your sips are saved locally", systemImage: "iphone")
                     Text("Panda Sip saves locally. Today starts fresh at midnight; the History tab keeps your previous days available.")

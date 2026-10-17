@@ -1,6 +1,6 @@
 # Panda Sip
 
-A native SwiftUI iPhone hydration tracker with original storybook animal companions and layered, animated water in a shared cup. Requires iOS 17+ and Xcode 16+; no third-party dependencies.
+A native SwiftUI iPhone hydration tracker with storybook animal companions and layered, animated water in a shared cup. Requires iOS 17+ and Xcode 16+; no third-party dependencies. Apple currently requires Xcode 26+ and the iOS 26 SDK for App Store uploads ([submission requirements](https://developer.apple.com/news/upcoming-requirements/)).
 
 Previews: [Home](artifacts/home-light.png) · [History](artifacts/history.png) · [Drink picker](artifacts/drink-picker.png) · [Dark mode](artifacts/home-dark.png)
 
@@ -8,7 +8,7 @@ Previews: [Home](artifacts/home-light.png) · [History](artifacts/history.png) �
 
 1. Open `PandaSip.xcodeproj` in Xcode.
 2. Select the **PandaSip** scheme and an iPhone simulator.
-3. Run. For a physical iPhone, choose your development team under Signing & Capabilities and use a unique bundle identifier.
+3. Run. For a physical iPhone, choose your development team under Signing & Capabilities. The project bundle ID matches the current device test build; confirm it can be registered to your App Store distribution team before creating the App Store Connect record.
 
 The app starts with no sample entries. Log water, coffee, tea, soft drinks, juice, milk, sparkling water, sports drinks, or alcohol. Choose 250 mL, 500 mL, or a custom whole amount. The **Today** tab shows the panda and current progress; **History** browses individual days with a date picker and previous/next controls. Every drink, including alcohol, appears with its time, consumed volume, and goal credit. Each day shows separate consumed and credited totals, with newest entries first. Both tabs support deleting a sip.
 
@@ -24,9 +24,11 @@ Entries retain the factor applied when logged. The display rounds the summed cre
 
 Data saves atomically to the app’s Application Support directory as `PandaSip/hydration.json`. Failed writes keep the previous state; unreadable files are preserved and block writes until successfully reloaded. Daily grouping uses the current local calendar. Today refreshes on significant time changes or app activation. History follows today across midnight unless a past day has been selected. Previously saved entries remain compatible; no migration is needed.
 
-Original storybook panda, fox, rabbit, capybara, giraffe, monkey, and pig illustrations are bundled in `PandaSip/Assets.xcassets`. Two overlapping wave surfaces fill a shared tapered cup while the animal's face and paws stay clear. Multiply compositing preserves the painted texture. Liquid level rises with SwiftUI animation; the surface moves on a 60 fps animation timeline. Waves pause when the app is inactive, empty/full after settling, or Reduce Motion is enabled. Reduce Motion also disables the fill transition. Dynamic Type, VoiceOver labels, and adaptive light/dark colors are supported. The selected companion and earned animal identifiers are stored separately from hydration history.
+Storybook panda, fox, rabbit, capybara, giraffe, monkey, and pig illustrations are bundled in `PandaSip/Assets.xcassets`. Two overlapping wave surfaces fill a shared tapered cup while the animal's face and paws stay clear. Multiply compositing preserves the painted texture. Liquid level rises with SwiftUI animation; the surface moves on a 60 fps animation timeline. Waves pause when the app is inactive, empty/full after settling, or Reduce Motion is enabled. Reduce Motion also disables the fill transition. Dynamic Type, VoiceOver labels, and adaptive light/dark colors are supported. The selected companion and earned animal identifiers are stored separately from hydration history.
 
 Reminders, HealthKit, accounts, and cloud synchronization are outside this MVP.
+
+The in-app privacy policy is bundled from `docs/privacy-policy.md`. Before App Store submission, add the publisher name and support contact, host that policy at a public HTTPS URL, enter its URL and the support URL in App Store Connect, and complete the privacy and age-rating disclosures.
 
 ## Checks
 
