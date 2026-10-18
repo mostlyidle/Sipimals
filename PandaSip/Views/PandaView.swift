@@ -148,6 +148,7 @@ struct PandaView: View {
     private func animalArtwork(phase: Double, slosh: Double) -> some View {
         let side: CGFloat = 270
         let cup = cupInteriorBounds.applying(CGAffineTransform(scaleX: side / Self.rigCanvasSize, y: side / Self.rigCanvasSize))
+        let headroom = (cupInteriorBounds.minY - cupOpeningBounds.minY) * side / Self.rigCanvasSize
 
         return ZStack {
             animalCharacterArtwork
@@ -155,13 +156,13 @@ struct PandaView: View {
             cupBrim(cup: cup)
 
             ZStack {
-                LiquidWave(level: displayedProgress, phase: phase * 0.7, waves: 1.25, amplitude: 1.8, slosh: slosh)
+                LiquidWave(level: displayedProgress, phase: phase * 0.7, waves: 1.25, amplitude: 1.8, slosh: slosh, headroom: headroom)
                     .fill(LinearGradient(
                         colors: [Color(red: 0.35, green: 0.76, blue: 0.94), Color(red: 0.18, green: 0.62, blue: 0.89)],
                         startPoint: .top,
                         endPoint: .bottom
                     ).opacity(0.92))
-                LiquidWave(level: displayedProgress, phase: -phase, waves: 1.75, amplitude: 2.6, slosh: slosh)
+                LiquidWave(level: displayedProgress, phase: -phase, waves: 1.75, amplitude: 2.6, slosh: slosh, headroom: headroom)
                     .fill(Color(red: 0.16, green: 0.60, blue: 0.88).opacity(0.58))
             }
             .frame(width: cup.width, height: cup.height)
@@ -208,6 +209,8 @@ struct PandaView: View {
 
     private func cupBrim(cup: CGRect) -> some View {
         let opening = cupOpeningBounds.applying(CGAffineTransform(scaleX: 270 / Self.rigCanvasSize, y: 270 / Self.rigCanvasSize))
+        let surface = cup.maxY - (cup.maxY - opening.minY) * displayedProgress
+        let fraction = min(max((cup.minY - surface) / (cup.minY - opening.minY), 0), 1)
         var volume = Path(ellipseIn: opening)
         volume.move(to: CGPoint(x: opening.minX, y: opening.midY))
         volume.addLine(to: CGPoint(x: opening.maxX, y: opening.midY))
@@ -225,8 +228,10 @@ struct PandaView: View {
                 .position(x: opening.midX, y: opening.midY)
         }
         .frame(width: 270, height: 270)
+        .opacity(fraction * fraction * (3 - 2 * fraction))
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.65), value: displayedProgress)
+        .mask(CupBrimWaterline(level: displayedProgress, floorY: cup.maxY, backRimY: opening.minY).blur(radius: 0.35))
         .mask(Rectangle().subtracting(AnimalPawOcclusion(animal: animal)))
-        .modifier(CupTopVisibility(level: displayedProgress, goalReached: progress >= 1))
         .allowsHitTesting(false)
     }
 
@@ -304,6 +309,23 @@ struct PandaView: View {
             .font(.system(size: size, weight: .semibold))
             .rotationEffect(.degrees(rotation))
             .position(x: x, y: y)
+    }
+}
+
+private struct CupBrimWaterline: Shape {
+    var level: Double
+    let floorY: CGFloat
+    let backRimY: CGFloat
+
+    var animatableData: Double {
+        get { level }
+        set { level = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        // The mask inherits the wave's spring; the opacity fade applies only to the content behind it.
+        let surface = rect.minY + (floorY - (floorY - backRimY) * min(max(level, 0), 1)) / 270 * rect.height
+        return Path(CGRect(x: rect.minX, y: surface, width: rect.width, height: max(0, rect.maxY - surface)))
     }
 }
 
@@ -525,6 +547,7 @@ private struct LiquidWave: Shape {
     let waves: Double
     let amplitude: Double
     var slosh: Double
+    let headroom: CGFloat
 
     var animatableData: Double {
         get { level }
@@ -533,7 +556,7 @@ private struct LiquidWave: Shape {
 
     func path(in rect: CGRect) -> Path {
         let clampedLevel = min(max(level, 0), 1)
-        let surface = rect.maxY - rect.height * CGFloat(clampedLevel)
+        let surface = rect.maxY - (rect.height + headroom) * CGFloat(clampedLevel)
         let edgeScale = sin(.pi * clampedLevel)
         let waveHeight = CGFloat((amplitude + abs(slosh) * 4.5) * edgeScale)
         var path = Path()

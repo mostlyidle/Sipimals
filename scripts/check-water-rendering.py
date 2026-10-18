@@ -110,6 +110,9 @@ let spillAnchors: [AnimalKind: [Int]] = [
     .monkey: [540, 705], .pig: [547, 708]
 ]
 
+// Back of each illustrated inner opening, above the front-rim landmarks in cups.
+let openingTops: [AnimalKind: Int] = [.panda: 667, .fox: 653, .rabbit: 694, .capybara: 619, .giraffe: 668, .monkey: 673, .pig: 668]
+
 @main struct WaterReview {
     @MainActor static func main() throws {
         let out = URL(fileURLWithPath: CommandLine.arguments[1])
@@ -145,21 +148,32 @@ let spillAnchors: [AnimalKind: [Int]] = [
         for cup in cups {
             for visibleLevel in [0.25, 0.5, 0.75, 0.95, 0.99] {
                 let rising = render(cup.animal, 1, 0, 0, false, overflow: true, presentation: visibleLevel)
+                let brimOnly = render(cup.animal, 1, 0, 0, false, brim: true, presentation: visibleLevel)
                 let withoutTop = render(cup.animal, 1, 0, 0, false, presentation: visibleLevel)
-                let point = outputPoint(x: cup.center, y: cup.top - 30)
+                let surface = Double(cup.bottom) - Double(cup.bottom - openingTops[cup.animal]!) * visibleLevel
+                let point = outputPoint(x: cup.center, y: Int(surface) - 8)
                 check(delta(pixel(rising, x: Int(point.x), y: Int(point.y)), pixel(withoutTop, x: Int(point.x), y: Int(point.y))) <= 4,
-                      "\(cup.animal.rawValue): brim appears while water is only \(Int(visibleLevel * 100))% full (goal target 100%)")
-                // A strip spanning both spill paths must also stay hidden before the water reaches the rim.
+                      "\(cup.animal.rawValue): brim floats above the rising water at \(Int(visibleLevel * 100))%")
+                // The brim may fill gradually; exterior spill must wait until the opening is full.
                 var prematureSpill = 0
                 let start = outputPoint(x: cup.center - 130, y: cup.top - 10)
                 let end = outputPoint(x: cup.center + 130, y: cup.bottom + 140)
                 for y in Int(start.y)...Int(end.y) {
                     for x in Int(start.x)...Int(end.x) {
-                        if difference(rising, withoutTop, y * rising.bytesPerRow + x * 4) > 6 { prematureSpill += 1 }
+                        if difference(rising, brimOnly, y * rising.bytesPerRow + x * 4) > 6 { prematureSpill += 1 }
                     }
                 }
-                check(prematureSpill == 0, "\(cup.animal.rawValue): brim/overflow runs ahead of rising water at \(Int(visibleLevel * 100))%")
+                check(prematureSpill == 0, "\(cup.animal.rawValue): overflow runs ahead of rising water at \(Int(visibleLevel * 100))%")
             }
+            let point = outputPoint(x: cup.center, y: cup.top - 5)
+            var coverage: [Double] = []
+            for visibleLevel in [0.90, 0.95, 0.98, 1.0] {
+                let brim = render(cup.animal, visibleLevel, 0, 0, false, brim: true)
+                let base = render(cup.animal, visibleLevel, 0, 0, false)
+                coverage.append(delta(pixel(brim, x: Int(point.x), y: Int(point.y)), pixel(base, x: Int(point.x), y: Int(point.y))))
+            }
+            check(coverage[0] > 4 && coverage[0] < coverage[1] && coverage[1] < coverage[2] && coverage[2] <= coverage[3],
+                  "\(cup.animal.rawValue): brim does not blend progressively through 90/95/98/100%: \(coverage)")
         }
         if CommandLine.arguments.contains("--transition-only") {
             failures.prefix(14).forEach { print("FAIL: \($0)") }
@@ -229,7 +243,7 @@ let spillAnchors: [AnimalKind: [Int]] = [
                 let laterDropBaseline = render(cup.animal, 1, 3.798, 0, dark, overflow: true, beads: false)
                 let overGoal = render(cup.animal, 1.25, 0, 0, dark, overflow: true)
                 let almost = render(cup.animal, 0.999, 0, 0, dark, overflow: true)
-                let almostWithoutSpill = render(cup.animal, 0.999, 0, 0, dark)
+                let almostWithoutSpill = render(cup.animal, 0.999, 0, 0, dark, brim: true)
                 for x in spillAnchors[cup.animal]! {
                     var rimCoverage = 0.0
                     for offset in -12...12 {
@@ -329,7 +343,7 @@ let spillAnchors: [AnimalKind: [Int]] = [
                                     surface = y; break
                                 }
                             }
-                            let expected = Double(cup.bottom) - Double(cup.bottom - cup.top) * level
+                            let expected = max(Double(cup.top), Double(cup.bottom) - Double(cup.bottom - openingTops[cup.animal]!) * level)
                             check(abs(Double(surface) - expected) <= 14, "\(context): surface y=\(surface), expected \(Int(expected))")
                         }
                         if level > 1 {
@@ -341,7 +355,7 @@ let spillAnchors: [AnimalKind: [Int]] = [
                         }
                         if phase == 0 {
                             let file = "\(name)-\(Int(level * 100))-\(dark ? "dark" : "light")\(suffix).png"
-                            let reviewImage = level >= 1 ? spill : image
+                            let reviewImage = level >= 1 ? spill : render(cup.animal, level, phase, slosh, dark, brim: true)
                             try reviewImage.representation(using: .png, properties: [:])!.write(to: out.appendingPathComponent(file))
                         }
                     }
