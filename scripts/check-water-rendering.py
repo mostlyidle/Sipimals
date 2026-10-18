@@ -21,10 +21,13 @@ view = (ROOT / 'PandaSip/Views/PandaView.swift').read_text().split('#Preview')[0
 # Freeze only head motion; exercise the production water view with explicit wave phase and slosh.
 view = view.replace('@Environment(\\.accessibilityReduceMotion) private var reduceMotion', 'private let reduceMotion = true')
 # Isolate interior regressions from intentional exterior spills, then check the complete layer separately.
-view = view.replace('    let animal: AnimalKind', '    var reviewShowsOverflow = false\n    let animal: AnimalKind', 1)
+view = view.replace('    let animal: AnimalKind', '    var reviewShowsOverflow = false\n    var reviewShowsBrim = false\n    let animal: AnimalKind', 1)
 overflow_call = 'cupOverflow(cup: cup, phase: phase)'
 assert overflow_call in view, 'Update the overflow seam after changing the companion renderer'
 view = view.replace(overflow_call, 'if reviewShowsOverflow { ' + overflow_call + ' }', 1)
+brim_call = 'cupBrim(cup: cup)'
+assert brim_call in view, 'Update the brim seam after changing the companion renderer'
+view = view.replace(brim_call, 'if reviewShowsBrim { ' + brim_call + ' }', 1)
 for layer in ['Body', 'Head']:
     original = 'Image("\\(animal.rawValue.capitalized)Rig' + layer + '")'
     assert original in view, 'Update the asset-loading seam after changing the companion renderer'
@@ -37,9 +40,10 @@ source += (ROOT / 'PandaSip/Models/Drink.swift').read_text()
 source += view
 source += r'''
 extension PandaView {
-    func reviewFrame(phase: Double, slosh: Double, overflow: Bool) -> some View {
+    func reviewFrame(phase: Double, slosh: Double, overflow: Bool, brim: Bool) -> some View {
         var frame = self
         frame.reviewShowsOverflow = overflow
+        frame.reviewShowsBrim = brim || overflow
         return frame.animalArtwork(phase: phase, slosh: slosh)
     }
 }
@@ -116,9 +120,9 @@ let spillAnchors: [AnimalKind: [Int]] = [
             let left = a.bitmapData!, right = b.bitmapData!
             return (0..<4).map { abs(Int(left[index + $0]) - Int(right[index + $0])) }.max()!
         }
-        @MainActor func render(_ animal: AnimalKind, _ level: Double, _ phase: Double, _ slosh: Double, _ dark: Bool, overflow: Bool = false) -> NSBitmapImageRep {
+        @MainActor func render(_ animal: AnimalKind, _ level: Double, _ phase: Double, _ slosh: Double, _ dark: Bool, overflow: Bool = false, brim: Bool = false) -> NSBitmapImageRep {
             let frame = PandaView(animal: animal, progress: level, celebrating: true)
-                .reviewFrame(phase: phase, slosh: slosh, overflow: overflow)
+                .reviewFrame(phase: phase, slosh: slosh, overflow: overflow, brim: brim)
                 .frame(width: 270, height: 285)
                 .background(dark ? Color(red: 0.08, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.94, blue: 0.85))
                 .environment(\.colorScheme, dark ? .dark : .light)
@@ -178,15 +182,16 @@ let spillAnchors: [AnimalKind: [Int]] = [
                     let source = CGPoint(x: (Double(x) + 0.5) * 1254 / (270 * scale), y: (Double(y) + 0.5 - 7.5 * scale) * 1254 / (270 * scale))
                     coverage.append((y * empty.bytesPerRow + x * 4, !cup.exterior.contains(source), pawPaths.contains { $0.contains(source) }))
                 } }
+                let brim = render(cup.animal, 1, 0, 0, dark, brim: true)
                 let spill = render(cup.animal, 1, 0, 0, dark, overflow: true)
                 let movingSpill = render(cup.animal, 1, 1.7, 0, dark, overflow: true)
                 let overGoal = render(cup.animal, 1.25, 0, 0, dark, overflow: true)
                 let almost = render(cup.animal, 0.999, 0, 0, dark, overflow: true)
                 let almostWithoutSpill = render(cup.animal, 0.999, 0, 0, dark)
                 for x in spillAnchors[cup.animal]! {
-                    for y in [cup.top - 8, cup.top + 150] {
+                    for y in [cup.top + 8, cup.top + 150] {
                         let point = outputPoint(x: x, y: y)
-                        check(delta(pixel(full, x: Int(point.x), y: Int(point.y)), pixel(spill, x: Int(point.x), y: Int(point.y))) > 18,
+                        check(delta(pixel(brim, x: Int(point.x), y: Int(point.y)), pixel(spill, x: Int(point.x), y: Int(point.y))) > 18,
                               "\(name): stream missing at rim/glass landmark \(x),\(y)")
                     }
                 }
@@ -195,7 +200,7 @@ let spillAnchors: [AnimalKind: [Int]] = [
                 for y in 0..<spill.pixelsHigh { for x in 0..<spill.pixelsWide {
                     let index = y * spill.bytesPerRow + x * 4
                     let point = CGPoint(x: (Double(x) + 0.5) * 1254 / (270 * scale), y: (Double(y) + 0.5 - 7.5 * scale) * 1254 / (270 * scale))
-                    if difference(full, spill, index) > 6 {
+                    if difference(brim, spill, index) > 6 {
                         if point.y < CGFloat(cup.top) { crestPixels += 1 }
                         if point.y > CGFloat(cup.bottom) { tailPixels += 1 }
                         if pawPaths.contains(where: { $0.contains(point) }) { spillOnPaws += 1 }
@@ -206,6 +211,21 @@ let spillAnchors: [AnimalKind: [Int]] = [
                     if difference(almost, almostWithoutSpill, index) > 4 { earlySpill += 1 }
                     if difference(spill, overGoal, index) > 4 { overGoalMismatch += 1 }
                 } }
+                // Water must cover the visible oval and join the front fill, not just support falling streaks.
+                for (x, y) in [(cup.center, cup.top - 55), (cup.center - 80, cup.top - 30), (cup.center + 80, cup.top - 30), (cup.center, cup.top - 5)] {
+                    let point = outputPoint(x: x, y: y)
+                    let water = pixel(brim, x: Int(point.x), y: Int(point.y))
+                    check(delta(pixel(empty, x: Int(point.x), y: Int(point.y)), water) > 30 && water.blueComponent > water.redComponent + 0.2,
+                          "\(name): unfilled opening/connection at \(x),\(y)")
+                }
+                for (x, y) in [(cup.center, cup.top - 115), (Int(cup.exterior.minX) - 35, cup.top - 40), (Int(cup.exterior.maxX) + 35, cup.top - 40)] {
+                    let point = outputPoint(x: x, y: y)
+                    check(delta(pixel(empty, x: Int(point.x), y: Int(point.y)), pixel(brim, x: Int(point.x), y: Int(point.y))) <= 4,
+                          "\(name): brim water escapes onto surrounding animal at \(x),\(y)")
+                }
+                for point in coverage where point.paw {
+                    if difference(empty, brim, point.index) > 6 { spillOnPaws += 1 }
+                }
                 check(crestPixels > 6, "\(name): no spill over the front rim")
                 check(tailPixels > 6, "\(name): no spill down past the inner glass floor")
                 check(movingPixels > 20, "\(name): overflow does not flow between phases")

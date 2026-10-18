@@ -152,6 +152,8 @@ struct PandaView: View {
         return ZStack {
             animalCharacterArtwork
 
+            cupBrim(cup: cup)
+
             ZStack {
                 LiquidWave(level: displayedProgress, phase: phase * 0.7, waves: 1.25, amplitude: 1.8, slosh: slosh)
                     .fill(LinearGradient(
@@ -189,6 +191,46 @@ struct PandaView: View {
         case .monkey: CGRect(x: 420, y: 740, width: 413, height: 365)
         case .pig: CGRect(x: 430, y: 740, width: 403, height: 365)
         }
+    }
+
+    private var cupOpeningBounds: CGRect {
+        // The oval opening sits above the front rim used by the main liquid mask.
+        switch animal {
+        case .panda: CGRect(x: 414, y: 667, width: 429, height: 61)
+        case .fox: CGRect(x: 538, y: 653, width: 370, height: 57)
+        case .rabbit: CGRect(x: 435, y: 694, width: 383, height: 58)
+        case .capybara: CGRect(x: 425, y: 619, width: 443, height: 62)
+        case .giraffe: CGRect(x: 418, y: 668, width: 420, height: 60)
+        case .monkey: CGRect(x: 412, y: 673, width: 430, height: 55)
+        case .pig: CGRect(x: 417, y: 668, width: 422, height: 59)
+        }
+    }
+
+    private var cupIsFull: Bool { progress >= 1 && displayedProgress >= 0.995 }
+
+    private func cupBrim(cup: CGRect) -> some View {
+        let opening = cupOpeningBounds.applying(CGAffineTransform(scaleX: 270 / Self.rigCanvasSize, y: 270 / Self.rigCanvasSize))
+        var volume = Path(ellipseIn: opening)
+        volume.move(to: CGPoint(x: opening.minX, y: opening.midY))
+        volume.addLine(to: CGPoint(x: opening.maxX, y: opening.midY))
+        volume.addLine(to: CGPoint(x: cup.maxX, y: cup.minY + 0.5))
+        volume.addLine(to: CGPoint(x: cup.minX, y: cup.minY + 0.5))
+        volume.closeSubpath()
+
+        return ZStack {
+            volume.fill(Color(red: 0.35, green: 0.76, blue: 0.94).opacity(0.92))
+            volume.fill(Color(red: 0.16, green: 0.60, blue: 0.88).opacity(0.58))
+            Ellipse()
+                .fill(LinearGradient(colors: [.white.opacity(0.20), .clear], startPoint: .top, endPoint: .bottom))
+                .overlay { Ellipse().stroke(.white.opacity(0.65), lineWidth: 0.6) }
+                .frame(width: opening.width, height: opening.height)
+                .position(x: opening.midX, y: opening.midY)
+        }
+        .frame(width: 270, height: 270)
+        .mask(Rectangle().subtracting(AnimalPawOcclusion(animal: animal)))
+        .opacity(cupIsFull ? 1 : 0)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: cupIsFull)
+        .allowsHitTesting(false)
     }
 
     private var animalCharacterArtwork: some View {
@@ -243,8 +285,8 @@ struct PandaView: View {
             .position(x: cup.midX, y: cup.midY)
             .frame(width: 270, height: 270)
             .mask(Rectangle().subtracting(AnimalPawOcclusion(animal: animal)))
-            .opacity(progress >= 1 && displayedProgress >= 0.995 ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.45).delay(progress >= 1 ? 0.55 : 0), value: progress >= 1 && displayedProgress >= 0.995)
+            .opacity(cupIsFull ? 1 : 0)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.45).delay(cupIsFull ? 0.55 : 0), value: cupIsFull)
             .allowsHitTesting(false)
     }
 
