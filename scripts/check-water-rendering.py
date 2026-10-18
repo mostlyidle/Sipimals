@@ -21,13 +21,19 @@ view = (ROOT / 'PandaSip/Views/PandaView.swift').read_text().split('#Preview')[0
 # Freeze only head motion; exercise the production water view with explicit wave phase and slosh.
 view = view.replace('@Environment(\\.accessibilityReduceMotion) private var reduceMotion', 'private let reduceMotion = true')
 # Isolate interior regressions from intentional exterior spills, then check the complete layer separately.
-view = view.replace('    let animal: AnimalKind', '    var reviewShowsOverflow = false\n    var reviewShowsBrim = false\n    let animal: AnimalKind', 1)
+view = view.replace('    let animal: AnimalKind', '    var reviewShowsOverflow = false\n    var reviewShowsBrim = false\n    var reviewHidesBeads = false\n    let animal: AnimalKind', 1)
 overflow_call = 'cupOverflow(cup: cup, phase: phase)'
 assert overflow_call in view, 'Update the overflow seam after changing the companion renderer'
 view = view.replace(overflow_call, 'if reviewShowsOverflow { ' + overflow_call + ' }', 1)
 brim_call = 'cupBrim(cup: cup)'
 assert brim_call in view, 'Update the brim seam after changing the companion renderer'
 view = view.replace(brim_call, 'if reviewShowsBrim { ' + brim_call + ' }', 1)
+# Compare identical flow phases with/without beads, so stationary film cannot satisfy falling-drop checks.
+bead_opacity = 'beadContext.opacity = min(1, beadCycle / 0.12) * (1 - falling)'
+assert bead_opacity in view, 'Update the bead seam after changing overflow rendering'
+view = view.replace('    let cupHeight: CGFloat', '    let cupHeight: CGFloat\n    var reviewHidesBeads = false', 1)
+view = view.replace('cupHeight: cup.height)', 'cupHeight: cup.height, reviewHidesBeads: reviewHidesBeads)', 1)
+view = view.replace(bead_opacity, bead_opacity.replace('= min', '= reviewHidesBeads ? 0 : min'), 1)
 for layer in ['Body', 'Head']:
     original = 'Image("\\(animal.rawValue.capitalized)Rig' + layer + '")'
     assert original in view, 'Update the asset-loading seam after changing the companion renderer'
@@ -40,10 +46,11 @@ source += (ROOT / 'PandaSip/Models/Drink.swift').read_text()
 source += view
 source += r'''
 extension PandaView {
-    func reviewFrame(phase: Double, slosh: Double, overflow: Bool, brim: Bool) -> some View {
+    func reviewFrame(phase: Double, slosh: Double, overflow: Bool, brim: Bool, beads: Bool = true) -> some View {
         var frame = self
         frame.reviewShowsOverflow = overflow
         frame.reviewShowsBrim = brim || overflow
+        frame.reviewHidesBeads = !beads
         return frame.animalArtwork(phase: phase, slosh: slosh)
     }
 }
@@ -91,11 +98,11 @@ let furEdgeProbes: [AnimalKind: [(Int, Int)]] = [
     .pig: [(480, 837), (475, 858), (466, 899)]
 ]
 
-// Independent rim anchors in the original artwork canvas, left/center/right stream.
+// Independent rim anchors for the two unevenly spaced spill paths.
 let spillAnchors: [AnimalKind: [Int]] = [
-    .panda: [519, 632, 737], .fox: [629, 727, 818], .rabbit: [530, 632, 727],
-    .capybara: [538, 652, 757], .giraffe: [523, 636, 740],
-    .monkey: [515, 631, 738], .pig: [523, 636, 740]
+    .panda: [544, 704], .fox: [650, 790], .rabbit: [552, 697],
+    .capybara: [562, 724], .giraffe: [547, 708],
+    .monkey: [540, 705], .pig: [547, 708]
 ]
 
 @main struct WaterReview {
@@ -120,9 +127,9 @@ let spillAnchors: [AnimalKind: [Int]] = [
             let left = a.bitmapData!, right = b.bitmapData!
             return (0..<4).map { abs(Int(left[index + $0]) - Int(right[index + $0])) }.max()!
         }
-        @MainActor func render(_ animal: AnimalKind, _ level: Double, _ phase: Double, _ slosh: Double, _ dark: Bool, overflow: Bool = false, brim: Bool = false) -> NSBitmapImageRep {
+        @MainActor func render(_ animal: AnimalKind, _ level: Double, _ phase: Double, _ slosh: Double, _ dark: Bool, overflow: Bool = false, brim: Bool = false, beads: Bool = true) -> NSBitmapImageRep {
             let frame = PandaView(animal: animal, progress: level, celebrating: true)
-                .reviewFrame(phase: phase, slosh: slosh, overflow: overflow, brim: brim)
+                .reviewFrame(phase: phase, slosh: slosh, overflow: overflow, brim: brim, beads: beads)
                 .frame(width: 270, height: 285)
                 .background(dark ? Color(red: 0.08, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.94, blue: 0.85))
                 .environment(\.colorScheme, dark ? .dark : .light)
@@ -185,16 +192,53 @@ let spillAnchors: [AnimalKind: [Int]] = [
                 let brim = render(cup.animal, 1, 0, 0, dark, brim: true)
                 let spill = render(cup.animal, 1, 0, 0, dark, overflow: true)
                 let movingSpill = render(cup.animal, 1, 1.7, 0, dark, overflow: true)
+                let earlyPulse = render(cup.animal, 1, 0.9, 0, dark, overflow: true)
+                let laterPulse = render(cup.animal, 1, 1.2, 0, dark, overflow: true)
+                let earlyDrop = render(cup.animal, 1, 3.678, 0, dark, overflow: true)
+                let laterDrop = render(cup.animal, 1, 3.798, 0, dark, overflow: true)
+                let earlyDropBaseline = render(cup.animal, 1, 3.678, 0, dark, overflow: true, beads: false)
+                let laterDropBaseline = render(cup.animal, 1, 3.798, 0, dark, overflow: true, beads: false)
                 let overGoal = render(cup.animal, 1.25, 0, 0, dark, overflow: true)
                 let almost = render(cup.animal, 0.999, 0, 0, dark, overflow: true)
                 let almostWithoutSpill = render(cup.animal, 0.999, 0, 0, dark)
                 for x in spillAnchors[cup.animal]! {
-                    for y in [cup.top + 8, cup.top + 150] {
-                        let point = outputPoint(x: x, y: y)
-                        check(delta(pixel(brim, x: Int(point.x), y: Int(point.y)), pixel(spill, x: Int(point.x), y: Int(point.y))) > 18,
-                              "\(name): stream missing at rim/glass landmark \(x),\(y)")
+                    var rimCoverage = 0.0
+                    for offset in -12...12 {
+                        let point = outputPoint(x: x + offset, y: cup.top + 8)
+                        rimCoverage = max(rimCoverage, delta(pixel(brim, x: Int(point.x), y: Int(point.y)), pixel(spill, x: Int(point.x), y: Int(point.y))))
                     }
+                    check(rimCoverage > 8, "\(name): flow is detached from rim at \(x)")
                 }
+                func pulseHeight(_ image: NSBitmapImageRep) -> Double {
+                    var weightedHeight = 0.0, weight = 0.0
+                    for y in (cup.top + 25)..<(cup.bottom + 60) {
+                        for x in (spillAnchors[cup.animal]![0] - 22)...(spillAnchors[cup.animal]![0] + 22) {
+                            let point = outputPoint(x: x, y: y)
+                            let base = pixel(brim, x: Int(point.x), y: Int(point.y))
+                            let current = pixel(image, x: Int(point.x), y: Int(point.y))
+                            let highlight = max(0, (current.redComponent - base.redComponent) * 255 - 18)
+                            weight += highlight; weightedHeight += Double(y) * highlight
+                        }
+                    }
+                    return weight > 0 ? weightedHeight / weight : 0
+                }
+                check(pulseHeight(earlyPulse) > Double(cup.top), "\(name): no visible flowing pulse")
+                check(pulseHeight(laterPulse) > pulseHeight(earlyPulse) + 12, "\(name): pulse does not travel down the glass")
+                func dropHeight(_ image: NSBitmapImageRep, baseline: NSBitmapImageRep) -> Double {
+                    var weightedHeight = 0.0, weight = 0.0
+                    for y in (cup.bottom + 60)..<(cup.bottom + 140) {
+                        for x in (spillAnchors[cup.animal]![0] - 5)...(spillAnchors[cup.animal]![0] + 25) {
+                            let point = outputPoint(x: x, y: y)
+                            let change = max(0, delta(pixel(baseline, x: Int(point.x), y: Int(point.y)), pixel(image, x: Int(point.x), y: Int(point.y))) - 2)
+                            weight += change; weightedHeight += Double(y) * change
+                        }
+                    }
+                    return weight > 0 ? weightedHeight / weight : 0
+                }
+                let earlyDropY = dropHeight(earlyDrop, baseline: earlyDropBaseline)
+                let laterDropY = dropHeight(laterDrop, baseline: laterDropBaseline)
+                check(earlyDropY > Double(cup.bottom + 60), "\(name): no visible drop at lower glass edge")
+                check(laterDropY > earlyDropY + 6, "\(name): detached drop does not fall below the glass (\(earlyDropY) -> \(laterDropY))")
                 var crestPixels = 0, tailPixels = 0, movingPixels = 0, spillOnPaws = 0
                 var earlySpill = 0, overGoalMismatch = 0, straySpill = 0
                 for y in 0..<spill.pixelsHigh { for x in 0..<spill.pixelsWide {
@@ -204,7 +248,7 @@ let spillAnchors: [AnimalKind: [Int]] = [
                         if point.y < CGFloat(cup.top) { crestPixels += 1 }
                         if point.y > CGFloat(cup.bottom) { tailPixels += 1 }
                         if pawPaths.contains(where: { $0.contains(point) }) { spillOnPaws += 1 }
-                        let spillBounds = CGRect(x: cup.exterior.minX, y: CGFloat(cup.top - 40), width: cup.exterior.width, height: CGFloat(cup.bottom - cup.top + 115))
+                        let spillBounds = CGRect(x: cup.exterior.minX, y: CGFloat(cup.top - 40), width: cup.exterior.width, height: CGFloat(cup.bottom - cup.top + 190))
                         if !spillBounds.contains(point) { straySpill += 1 }
                     }
                     if difference(spill, movingSpill, index) > 6 { movingPixels += 1 }

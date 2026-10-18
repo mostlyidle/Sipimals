@@ -280,9 +280,11 @@ struct PandaView: View {
     private var headPivotY: CGFloat { headSplitY / Self.rigCanvasSize }
 
     private func cupOverflow(cup: CGRect, phase: Double) -> some View {
-        CupOverflow(phase: phase, surge: isOverflowing ? 1 : 0)
-            .frame(width: cup.width, height: cup.height)
-            .position(x: cup.midX, y: cup.midY)
+        // Canvas needs drawing space above the lip and below the outer glass base for detached drops.
+        let height = cup.height * 1.24 + 20
+        return CupOverflow(phase: phase, surge: isOverflowing ? 1 : 0, cupHeight: cup.height)
+            .frame(width: cup.width, height: height)
+            .position(x: cup.midX, y: cup.minY - 6 + height / 2)
             .frame(width: 270, height: 270)
             .mask(Rectangle().subtracting(AnimalPawOcclusion(animal: animal)))
             .opacity(cupIsFull ? 1 : 0)
@@ -312,6 +314,7 @@ struct PandaView: View {
 nonisolated private struct CupOverflow: View, Animatable {
     let phase: Double
     var surge: Double
+    let cupHeight: CGFloat
 
     var animatableData: Double {
         get { surge }
@@ -320,53 +323,74 @@ nonisolated private struct CupOverflow: View, Animatable {
 
     var body: some View {
         Canvas { context, size in
-            // Shared proportions keep the spill attached to each calibrated glass, clear of the paws.
-            for (index, stream) in [(0.23, 0.82), (0.51, 1.12), (0.77, 0.96)].enumerated() {
-                let x = size.width * stream.0
-                let length = size.height * stream.1
-                let width = size.width * (0.028 + 0.008 * surge)
-                let bend = sin(phase * 0.65 + Double(index) * 2) * 0.7
+            context.translateBy(x: 0, y: 6)
+            let seconds = phase / 1.5
+            // shortcut: gravity-led pulses and edge shading approximate wet glass; use refraction shaders for optical accuracy.
+            for stream in [(x: 0.29, width: 0.043, drift: 0.026, period: 2.7, offset: 0.17),
+                           (x: 0.69, width: 0.024, drift: -0.019, period: 3.8, offset: 0.63)] {
+                let x = size.width * stream.x
+                let length = cupHeight * 1.24
+                let width = size.width * stream.width * (1 + 0.22 * surge)
+                let cycle = (seconds / stream.period + stream.offset).truncatingRemainder(dividingBy: 1)
+                let pulse = -0.25 + cycle * 1.65
                 func center(_ t: Double) -> CGFloat {
-                    x + CGFloat(sin(t * .pi * 2 + Double(index)) * 1.1 + bend * t)
+                    x + size.width * stream.drift * (3 * t * t - 2 * t * t * t)
                 }
                 func halfWidth(_ t: Double) -> CGFloat {
-                    width * CGFloat(0.65 + 0.25 * cos(t * .pi * 4 + phase))
-                        + CGFloat(exp(-t * 25)) * 1.8
+                    let bulge = exp(-pow((t - pulse) / 0.085, 2))
+                    return width * (0.20 + 0.95 * exp(-t * 14) + 0.65 * bulge)
                 }
-                var ribbon = Path()
-                for step in 0...24 {
-                    let t = Double(step) / 24
-                    let point = CGPoint(x: center(t) - halfWidth(t), y: -3 + length * t)
-                    if step == 0 { ribbon.move(to: point) } else { ribbon.addLine(to: point) }
+                var film = Path()
+                for step in 0...48 {
+                    let t = Double(step) / 48
+                    let point = CGPoint(x: center(t) - halfWidth(t), y: -2 + length * t)
+                    if step == 0 { film.move(to: point) } else { film.addLine(to: point) }
                 }
-                ribbon.addQuadCurve(
-                    to: CGPoint(x: center(1) + halfWidth(1), y: length - 3),
-                    control: CGPoint(x: center(1), y: length + width * 2)
+                for step in stride(from: 48, through: 0, by: -1) {
+                    let t = Double(step) / 48
+                    film.addLine(to: CGPoint(x: center(t) + halfWidth(t) * 0.75, y: -2 + length * t))
+                }
+                film.addQuadCurve(
+                    to: CGPoint(x: center(0) - halfWidth(0), y: -2),
+                    control: CGPoint(x: center(0), y: -5)
                 )
-                for step in stride(from: 24, through: 0, by: -1) {
-                    let t = Double(step) / 24
-                    ribbon.addLine(to: CGPoint(x: center(t) + halfWidth(t), y: -3 + length * t))
-                }
-                ribbon.addQuadCurve(
-                    to: CGPoint(x: center(0) - halfWidth(0), y: -3),
-                    control: CGPoint(x: center(0), y: -8)
-                )
-                ribbon.closeSubpath()
-                context.fill(ribbon, with: .linearGradient(
-                    Gradient(colors: [.white.opacity(0.8), Color(red: 0.55, green: 0.86, blue: 0.98).opacity(0.5), .white.opacity(0.65)]),
+                film.closeSubpath()
+                context.fill(film, with: .linearGradient(
+                    Gradient(stops: [
+                        .init(color: .white.opacity(0.36), location: 0),
+                        .init(color: .white.opacity(0.08), location: 0.28),
+                        .init(color: .clear, location: 0.55),
+                        .init(color: Color(red: 0.06, green: 0.27, blue: 0.38).opacity(0.18), location: 0.85),
+                        .init(color: .white.opacity(0.16), location: 1)
+                    ]),
                     startPoint: CGPoint(x: x - width, y: 0), endPoint: CGPoint(x: x + width, y: 0)
                 ))
-                context.stroke(ribbon, with: .color(.white.opacity(0.75)), lineWidth: 0.55)
 
-                // Highlights travel down a continuous stream; the wrap fades instead of jumping.
-                let travel = (phase * 0.32 + Double(index) * 0.31).truncatingRemainder(dividingBy: 1)
+                // Only the curved pulse catches a strong glint; the wet path stays nearly transparent.
                 var highlight = Path()
-                for step in 0...8 {
-                    let t = max(0, travel - 0.16) + min(0.16, travel) * Double(step) / 8
-                    let point = CGPoint(x: center(t) - halfWidth(t) * 0.4, y: -3 + length * t)
-                    if step == 0 { highlight.move(to: point) } else { highlight.addLine(to: point) }
+                for step in 0...16 {
+                    let t = pulse - 0.10 + Double(step) / 16 * 0.16
+                    guard t >= 0 && t <= 1 else { continue }
+                    let point = CGPoint(x: center(t) - halfWidth(t) * 0.65, y: -2 + length * t)
+                    if highlight.isEmpty { highlight.move(to: point) } else { highlight.addLine(to: point) }
                 }
-                context.stroke(highlight, with: .color(.white.opacity(sin(travel * .pi) * 0.9)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                let glint = min(1, max(0, (pulse + 0.1) * 8)) * min(1, max(0, (1.1 - pulse) * 8))
+                context.stroke(highlight, with: .color(.white.opacity(glint * 0.65)), style: StrokeStyle(lineWidth: 0.75, lineCap: .round))
+
+                // A bead grows at the lower glass edge, pinches off, then accelerates through the air.
+                let beadPeriod = stream.period * 1.17
+                let beadCycle = (seconds / beadPeriod + stream.offset).truncatingRemainder(dividingBy: 1)
+                let release = 1 - 0.22 / beadPeriod
+                let falling = max(0, (beadCycle - release) * beadPeriod / 0.22)
+                let radius = 0.65 + min(beadCycle / release, 1) * 0.85
+                let drop = CGRect(x: center(1) - radius, y: length - 2 + falling * falling * 9,
+                                  width: radius * 2, height: radius * 2 * (1 + falling * 0.55))
+                var beadContext = context
+                beadContext.opacity = min(1, beadCycle / 0.12) * (1 - falling)
+                beadContext.fill(Path(ellipseIn: drop), with: .linearGradient(
+                    Gradient(colors: [.white.opacity(0.6), Color(red: 0.35, green: 0.72, blue: 0.87).opacity(0.22), .white.opacity(0.35)]),
+                    startPoint: CGPoint(x: drop.minX, y: drop.minY), endPoint: CGPoint(x: drop.maxX, y: drop.maxY)
+                ))
             }
         }
         .accessibilityHidden(true)
