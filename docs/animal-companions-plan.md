@@ -1,13 +1,13 @@
 # Animal companions and the shared cup
 
-Status: the shared cup renderer and all seven animals are implemented in a consistent polished 3D storybook style. The shared liquid mask is inset to keep full cups inside the glass across the collection. Giraffe, monkey, and pig unlock at 30, 60, and 90 consecutive qualifying local calendar days.
+Status: the shared cup renderer and all seven animals are implemented in a consistent polished 3D storybook style. The liquid uses one shared water material and normalized cup shape, with the usable interior bounds and paw contours calibrated to each bundled illustration. Giraffe, monkey, and pig unlock at 30, 60, and 90 consecutive qualifying local calendar days.
 
 ## Agreed experience
 
 - Replace belly filling with an oversized transparent cup held by the animal.
 - Keep the face visible, with paws around the cup sides and blue water waving inside.
-- Use the same cup shape and liquid geometry for every animal. Keep the cup aligned with each animal's hands and torso; allow a small artwork-specific offset where needed to preserve that alignment (the fox uses 58% of the canvas width).
-- Keep the water gently moving at a 60 fps target while partly full and active; a successful hydration log adds a damped slosh, and credited drinks that take the total over goal trigger a brief rim splash. Alcohol does not move the water; Reduce Motion and inactive scenes pause it.
+- Use the same normalized liquid shape, blue material, relative fill level, and wave behavior for every animal. Calibrate the interior bounds and paw clipping to each bundled glass illustration; the flattened cup drawings have slightly different dimensions.
+- Keep the water gently moving at a 60 fps target while partly full and active; a successful hydration log adds a damped slosh. At the daily goal, glossy streams spill over the front rim and down the glass, remaining visible while the goal is met. Further credited drinks briefly widen the streams. Alcohol does not move the water; Reduce Motion and inactive scenes pause it.
 - Start with panda, fox, rabbit, and capybara in a consistent polished 3D storybook cartoon style.
 - Preserve each starter animal's current pose, colors, transparent background, and shared cup placement while simplifying fur and shaping the cartoon finish.
 - Make all four available immediately, without purchases or unlock requirements.
@@ -20,10 +20,9 @@ Status: the shared cup renderer and all seven animals are implemented in a consi
 Create and review the panda style sample before revising the remaining starter animals.
 
 - Preserve rounded features and the warm palette while using smooth stylized 3D forms, simplified fur, expressive faces, and gentle cartoon shading.
-- Use one transparent canvas size and shared cup interior and paw geometry across the collection. Position the cup to stay centered between each animal's hands and torso.
+- Use one transparent canvas size across the collection. Keep the cup aligned between each animal's hands and torso, and calibrate the liquid bounds and paw contours against the bundled artwork.
 - Give the cup enough space to make its level readable on an iPhone, including near-empty and near-full states.
-- Use an animal base behind the cup and transparent foreground paws over it. Keep the cup, liquid mask, rim, and glass highlights shared in SwiftUI so every animal uses identical fill geometry.
-- Draw the layers in this order: animal base, cup background, clipped liquid, glass rim/highlights, foreground paws, goal sparkles.
+- The current art flattens the glass and paws into the body image. Render the body and moving head, then liquid clipped to the calibrated interior and paw contours, followed by overflow streams behind the same paw mask and goal sparkles. A separately rendered shared glass would require new artwork layers.
 - Review the panda at empty, quarter, half, and full levels in light and dark mode before making the other animals.
 
 Acceptance: the panda visibly holds the cup, water stays inside its interior, and the face and paws are never tinted by the water.
@@ -32,7 +31,11 @@ Acceptance: the panda visibly holds the cup, water stays inside its interior, an
 
 - Add a small `AnimalKind` model with stable identifiers, display names, and bundled artwork names.
 - Replace `PandaView` with an animal-aware `CompanionView`; update its caller in `ContentView` and register added/renamed Swift files in the Xcode project.
-- Reuse the existing wave paths, spring fill transition, goal sparkles, and animation pausing for Reduce Motion, inactive scenes, and settled empty/full states.
+- Reuse the existing wave paths, spring fill transition, goal sparkles, and animation pausing for Reduce Motion, inactive scenes, and settled empty states. Full cups keep the overflow flowing; Reduce Motion shows static streams.
+- Animate only the head layer. Keep the body, cup, liquid clipping, and paw contours in the same stationary artwork canvas.
+- Map 0–100% to each illustrated cup’s inner floor and front rim. Clip around the paw silhouettes with a small safety margin. Use normal alpha compositing so animal fur does not change the water’s hue. Copying parts of the flattened body above the water also copies empty glass and belly pixels, leaving pale holes. Recalibrate bounds and contours if the bundled artwork changes.
+- The panda uses a measured fur contour without a glass-side safety buffer. Positive coverage landmarks require the bright glass between fingers to fill blue, while separate dark-fur landmarks must remain untinted.
+- Run `python3 scripts/check-water-rendering.py` after renderer or artwork changes. It checks the interior separately for relative fill height, paw coverage, exterior leaks, water color consistency, and over-goal clamping in light/dark at 2× and 3×. Separate complete renders check overflow at the rim and below the inner floor, movement between phases, paw protection, bounded coverage, and absence below goal. These fixed-phase rendering checks do not exercise the live log-triggered animation or measure frame rate. Visually inspect the generated `.build/water-review` images too; the checks protect calibrated landmarks rather than recognizing artwork semantically.
 - Pass the same daily hydration progress to the cup for every animal. Cap the displayed cup at full while keeping totals above the goal intact.
 - Update Today headings and completion copy for the selected animal. Describe the cup's fill percentage in VoiceOver instead of saying the animal is full.
 - Use a species-neutral, hydration-focused product name as the collection grows.
