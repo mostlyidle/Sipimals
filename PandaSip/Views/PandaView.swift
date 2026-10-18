@@ -206,8 +206,6 @@ struct PandaView: View {
         }
     }
 
-    private var cupIsFull: Bool { progress >= 1 && displayedProgress >= 0.995 }
-
     private func cupBrim(cup: CGRect) -> some View {
         let opening = cupOpeningBounds.applying(CGAffineTransform(scaleX: 270 / Self.rigCanvasSize, y: 270 / Self.rigCanvasSize))
         var volume = Path(ellipseIn: opening)
@@ -228,8 +226,7 @@ struct PandaView: View {
         }
         .frame(width: 270, height: 270)
         .mask(Rectangle().subtracting(AnimalPawOcclusion(animal: animal)))
-        .opacity(cupIsFull ? 1 : 0)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: cupIsFull)
+        .modifier(CupTopVisibility(level: displayedProgress, goalReached: progress >= 1))
         .allowsHitTesting(false)
     }
 
@@ -287,8 +284,7 @@ struct PandaView: View {
             .position(x: cup.midX, y: cup.minY - 6 + height / 2)
             .frame(width: 270, height: 270)
             .mask(Rectangle().subtracting(AnimalPawOcclusion(animal: animal)))
-            .opacity(cupIsFull ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.45).delay(cupIsFull ? 0.55 : 0), value: cupIsFull)
+            .modifier(CupTopVisibility(level: displayedProgress, goalReached: progress >= 1))
             .allowsHitTesting(false)
     }
 
@@ -308,6 +304,21 @@ struct PandaView: View {
             .font(.system(size: size, weight: .semibold))
             .rotationEffect(.degrees(rotation))
             .position(x: x, y: y)
+    }
+}
+
+nonisolated private struct CupTopVisibility: AnimatableModifier {
+    var level: Double
+    let goalReached: Bool
+
+    var animatableData: Double {
+        get { level }
+        set { level = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        // Match LiquidWave's spring presentation, not the @State target that jumps ahead of it.
+        content.opacity(goalReached ? min(max((level - 0.995) / 0.005, 0), 1) : 0)
     }
 }
 

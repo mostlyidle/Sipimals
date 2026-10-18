@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import os
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / '.build/water-review'
@@ -21,7 +22,10 @@ view = (ROOT / 'PandaSip/Views/PandaView.swift').read_text().split('#Preview')[0
 # Freeze only head motion; exercise the production water view with explicit wave phase and slosh.
 view = view.replace('@Environment(\\.accessibilityReduceMotion) private var reduceMotion', 'private let reduceMotion = true')
 # Isolate interior regressions from intentional exterior spills, then check the complete layer separately.
-view = view.replace('    let animal: AnimalKind', '    var reviewShowsOverflow = false\n    var reviewShowsBrim = false\n    var reviewHidesBeads = false\n    let animal: AnimalKind', 1)
+view = view.replace('    let animal: AnimalKind', '    var reviewShowsOverflow = false\n    var reviewShowsBrim = false\n    var reviewHidesBeads = false\n    var reviewPresentationLevel: Double? = nil\n    let animal: AnimalKind', 1)
+# Sample the spring's presentation inputs while the logical @State value already holds its target.
+assert 'LiquidWave(level: displayedProgress' in view
+view = view.replace('level: displayedProgress', 'level: reviewPresentationLevel ?? displayedProgress')
 overflow_call = 'cupOverflow(cup: cup, phase: phase)'
 assert overflow_call in view, 'Update the overflow seam after changing the companion renderer'
 view = view.replace(overflow_call, 'if reviewShowsOverflow { ' + overflow_call + ' }', 1)
@@ -46,11 +50,12 @@ source += (ROOT / 'PandaSip/Models/Drink.swift').read_text()
 source += view
 source += r'''
 extension PandaView {
-    func reviewFrame(phase: Double, slosh: Double, overflow: Bool, brim: Bool, beads: Bool = true) -> some View {
+    func reviewFrame(phase: Double, slosh: Double, overflow: Bool, brim: Bool, beads: Bool = true, presentation: Double? = nil) -> some View {
         var frame = self
         frame.reviewShowsOverflow = overflow
         frame.reviewShowsBrim = brim || overflow
         frame.reviewHidesBeads = !beads
+        frame.reviewPresentationLevel = presentation
         return frame.animalArtwork(phase: phase, slosh: slosh)
     }
 }
@@ -127,9 +132,9 @@ let spillAnchors: [AnimalKind: [Int]] = [
             let left = a.bitmapData!, right = b.bitmapData!
             return (0..<4).map { abs(Int(left[index + $0]) - Int(right[index + $0])) }.max()!
         }
-        @MainActor func render(_ animal: AnimalKind, _ level: Double, _ phase: Double, _ slosh: Double, _ dark: Bool, overflow: Bool = false, brim: Bool = false, beads: Bool = true) -> NSBitmapImageRep {
+        @MainActor func render(_ animal: AnimalKind, _ level: Double, _ phase: Double, _ slosh: Double, _ dark: Bool, overflow: Bool = false, brim: Bool = false, beads: Bool = true, presentation: Double? = nil) -> NSBitmapImageRep {
             let frame = PandaView(animal: animal, progress: level, celebrating: true)
-                .reviewFrame(phase: phase, slosh: slosh, overflow: overflow, brim: brim, beads: beads)
+                .reviewFrame(phase: phase, slosh: slosh, overflow: overflow, brim: brim, beads: beads, presentation: presentation)
                 .frame(width: 270, height: 285)
                 .background(dark ? Color(red: 0.08, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.94, blue: 0.85))
                 .environment(\.colorScheme, dark ? .dark : .light)
@@ -137,6 +142,30 @@ let spillAnchors: [AnimalKind: [Int]] = [
             return NSBitmapImageRep(cgImage: renderer.cgImage!)
         }
         precondition(Set(cups.map(\.animal)) == Set(AnimalKind.allCases), "Every animal needs visual landmarks")
+        for cup in cups {
+            for visibleLevel in [0.25, 0.5, 0.75, 0.95, 0.99] {
+                let rising = render(cup.animal, 1, 0, 0, false, overflow: true, presentation: visibleLevel)
+                let withoutTop = render(cup.animal, 1, 0, 0, false, presentation: visibleLevel)
+                let point = outputPoint(x: cup.center, y: cup.top - 30)
+                check(delta(pixel(rising, x: Int(point.x), y: Int(point.y)), pixel(withoutTop, x: Int(point.x), y: Int(point.y))) <= 4,
+                      "\(cup.animal.rawValue): brim appears while water is only \(Int(visibleLevel * 100))% full (goal target 100%)")
+                // A strip spanning both spill paths must also stay hidden before the water reaches the rim.
+                var prematureSpill = 0
+                let start = outputPoint(x: cup.center - 130, y: cup.top - 10)
+                let end = outputPoint(x: cup.center + 130, y: cup.bottom + 140)
+                for y in Int(start.y)...Int(end.y) {
+                    for x in Int(start.x)...Int(end.x) {
+                        if difference(rising, withoutTop, y * rising.bytesPerRow + x * 4) > 6 { prematureSpill += 1 }
+                    }
+                }
+                check(prematureSpill == 0, "\(cup.animal.rawValue): brim/overflow runs ahead of rising water at \(Int(visibleLevel * 100))%")
+            }
+        }
+        if CommandLine.arguments.contains("--transition-only") {
+            failures.prefix(14).forEach { print("FAIL: \($0)") }
+            print("\(failures.isEmpty ? "PASS" : "FAIL"): \(checks) fill-transition checks @\(Int(scale))x")
+            exit(failures.isEmpty ? 0 : 1)
+        }
         for dark in [false, true] {
             var waterColors = Array(repeating: [NSColor](), count: 12)
             for cup in cups {
@@ -356,4 +385,4 @@ source = source.replace('\\\\', '\\')
 (OUT / 'WaterReview.swift').write_text(source)
 subprocess.run(['xcrun', 'swiftc', '-O', '-parse-as-library', str(OUT / 'WaterReview.swift'), '-o', str(OUT / 'water-review')], env=env, check=True)
 for scale in ['2', '3']:
-    subprocess.run([str(OUT / 'water-review'), str(OUT), scale], env=env, check=True)
+    subprocess.run([str(OUT / 'water-review'), str(OUT), scale] + (['--transition-only'] if '--transition-only' in sys.argv else []), env=env, check=True)
