@@ -1,8 +1,8 @@
-# Panda Sip
+# Sipimals
 
-A native SwiftUI iPhone hydration tracker with storybook animal companions and layered, animated water in a shared cup. Requires iOS 17+ and Xcode 16+; no third-party dependencies. Apple currently requires Xcode 26+ and the iOS 26 SDK for App Store uploads ([submission requirements](https://developer.apple.com/news/upcoming-requirements/)).
+Sipimals (sip + animals) is a native SwiftUI iPhone hydration tracker with storybook animal companions and layered, animated water in a shared cup. Requires iOS 17+ and Xcode 16+; no third-party dependencies. Apple currently requires Xcode 26+ and the iOS 26 SDK for App Store uploads ([submission requirements](https://developer.apple.com/news/upcoming-requirements/)).
 
-Previews: [Home](artifacts/home-light.png) · [History](artifacts/history.png) · [Drink picker](artifacts/drink-picker.png) · [Dark mode](artifacts/home-dark.png)
+UI previews (home captures show the previous name): [Home](artifacts/home-light.png) · [History](artifacts/history.png) · [Drink picker](artifacts/drink-picker.png) · [Dark mode](artifacts/home-dark.png)
 
 ## Run
 

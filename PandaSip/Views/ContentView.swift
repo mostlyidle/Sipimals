@@ -99,7 +99,7 @@ struct ContentView: View {
                 .frame(width: 42, height: 42)
                 .background(SipTheme.mint, in: RoundedRectangle(cornerRadius: 15))
                 .accessibilityHidden(true)
-            Text("panda sip")
+            Text("Sipimals")
                 .font(.system(.title3, design: .rounded, weight: .heavy))
             Spacer(minLength: 8)
             Button { activeSheet = .settings } label: {

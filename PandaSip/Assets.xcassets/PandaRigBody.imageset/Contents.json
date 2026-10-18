@@ -1,0 +1,13 @@
+{
+  "images": [
+    {
+      "filename": "panda-rig-body.png",
+      "idiom": "universal",
+      "scale": "1x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

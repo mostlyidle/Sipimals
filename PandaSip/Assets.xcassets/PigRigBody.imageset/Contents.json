@@ -1,0 +1,13 @@
+{
+  "images": [
+    {
+      "filename": "pig-rig-body.png",
+      "idiom": "universal",
+      "scale": "1x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

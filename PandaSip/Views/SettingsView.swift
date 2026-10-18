@@ -92,7 +92,7 @@ struct SettingsView: View {
 
                 Section {
                     Label("Your sips are saved locally", systemImage: "iphone")
-                    Text("Panda Sip saves locally. Today starts fresh at midnight; the History tab keeps your previous days available.")
+                    Text("Your drink history is saved on this device. Today starts fresh at midnight; the History tab keeps your previous days available.")
                         .font(.subheadline)
                         .foregroundStyle(SipTheme.muted)
                 }

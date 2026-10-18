@@ -1,4 +1,4 @@
-# Panda Sip Privacy Policy
+# Sipimals Privacy Policy
 
 Last updated: October 17, 2026
 
@@ -6,9 +6,9 @@ Last updated: October 17, 2026
 
 ## Information stored by the app
 
-Panda Sip stores drink type, amount, and time; your daily goal; your selected animal; and earned animal unlocks. The app keeps these details in its private app storage on your device so it can show your progress and history.
+Sipimals stores drink type, amount, and time; your daily goal; your selected animal; and earned animal unlocks. The app keeps these details in its private app storage on your device so it can show your progress and history.
 
-The app does not require an account. In the current release, it has no developer-operated server or cloud sync and includes no analytics or advertising SDKs. Your app records are not sent to Panda Sip's developer.
+The app does not require an account. In the current release, it has no developer-operated server or cloud sync and includes no analytics or advertising SDKs. Your app records are not sent to the app publisher.
 
 If you choose to open a research link in Settings, iOS opens that third-party website. The website then handles your visit under its own privacy policy.
 

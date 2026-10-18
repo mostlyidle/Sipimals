@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct PandaView: View {
+    private static let rigCanvasSize: CGFloat = 1254
+    private static let rigOverlap: CGFloat = 24
+
     let animal: AnimalKind
     let progress: Double
     var celebrating: Bool = false
@@ -148,10 +151,7 @@ struct PandaView: View {
         let cupSize = CGSize(width: side * 0.39, height: side * 0.42)
 
         return ZStack {
-            Image(animal.artworkName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: side, height: side)
+            animalCharacterArtwork
 
             ZStack {
                 LiquidWave(level: displayedProgress, phase: phase * 0.7, waves: 1.25, amplitude: 1.8, slosh: slosh)
@@ -173,6 +173,52 @@ struct PandaView: View {
         .compositingGroup()
         .position(x: 135, y: 142.5)
     }
+
+    private var animalCharacterArtwork: some View {
+        ZStack {
+            Image("\(animal.rawValue.capitalized)RigBody")
+                .resizable()
+                .frame(width: 270, height: 270 * (Self.rigCanvasSize - headSplitY + Self.rigOverlap) / Self.rigCanvasSize)
+                .frame(width: 270, height: 270, alignment: .bottom)
+
+            if reduceMotion || scenePhase != .active {
+                animalHeadLayer
+            } else {
+                animalHeadLayer
+                    .phaseAnimator([0.0, -1.0, 0.0, 1.0]) { content, angle in
+                        content
+                            .rotationEffect(
+                                .degrees(angle),
+                                anchor: UnitPoint(x: 0.5, y: headPivotY)
+                            )
+                    } animation: { _ in
+                        .easeInOut(duration: 3.2)
+                    }
+            }
+        }
+        .frame(width: 270, height: 270)
+    }
+
+    private var animalHeadLayer: some View {
+        Image("\(animal.rawValue.capitalized)RigHead")
+            .resizable()
+            .frame(width: 270, height: 270 * (headSplitY + Self.rigOverlap) / Self.rigCanvasSize)
+            .frame(width: 270, height: 270, alignment: .top)
+    }
+
+    private var headSplitY: CGFloat {
+        switch animal {
+        case .panda: 640
+        case .fox: 620
+        case .rabbit: 650
+        case .capybara: 570
+        case .giraffe: 630
+        case .monkey: 650
+        case .pig: 670
+        }
+    }
+
+    private var headPivotY: CGFloat { headSplitY / Self.rigCanvasSize }
 
     private func overflowDrops(cupCenter: CGPoint, cupHeight: CGFloat) -> some View {
         // shortcut: flattened animal art keeps overflow to droplets above the shared cup rim.

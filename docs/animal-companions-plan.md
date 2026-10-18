@@ -6,7 +6,7 @@ Status: the shared cup renderer and all seven animals are implemented in a consi
 
 - Replace belly filling with an oversized transparent cup held by the animal.
 - Keep the face visible, with paws around the cup sides and blue water waving inside.
-- Use the same cup shape and placement for every animal.
+- Use the same cup shape and liquid geometry for every animal. Keep the cup aligned with each animal's hands and torso; allow a small artwork-specific offset where needed to preserve that alignment (the fox uses 58% of the canvas width).
 - Keep the water gently moving at a 60 fps target while partly full and active; a successful hydration log adds a damped slosh, and credited drinks that take the total over goal trigger a brief rim splash. Alcohol does not move the water; Reduce Motion and inactive scenes pause it.
 - Start with panda, fox, rabbit, and capybara in a consistent polished 3D storybook cartoon style.
 - Preserve each starter animal's current pose, colors, transparent background, and shared cup placement while simplifying fur and shaping the cartoon finish.
@@ -20,7 +20,7 @@ Status: the shared cup renderer and all seven animals are implemented in a consi
 Create and review the panda style sample before revising the remaining starter animals.
 
 - Preserve rounded features and the warm palette while using smooth stylized 3D forms, simplified fur, expressive faces, and gentle cartoon shading.
-- Use one transparent canvas size, animal placement, cup interior, and paw placement across the collection.
+- Use one transparent canvas size and shared cup interior and paw geometry across the collection. Position the cup to stay centered between each animal's hands and torso.
 - Give the cup enough space to make its level readable on an iPhone, including near-empty and near-full states.
 - Use an animal base behind the cup and transparent foreground paws over it. Keep the cup, liquid mask, rim, and glass highlights shared in SwiftUI so every animal uses identical fill geometry.
 - Draw the layers in this order: animal base, cup background, clipped liquid, glass rim/highlights, foreground paws, goal sparkles.
@@ -35,7 +35,7 @@ Acceptance: the panda visibly holds the cup, water stays inside its interior, an
 - Reuse the existing wave paths, spring fill transition, goal sparkles, and animation pausing for Reduce Motion, inactive scenes, and settled empty/full states.
 - Pass the same daily hydration progress to the cup for every animal. Cap the displayed cup at full while keeping totals above the goal intact.
 - Update Today headings and completion copy for the selected animal. Describe the cup's fill percentage in VoiceOver instead of saying the animal is full.
-- Keep the existing Panda Sip app name and icon for this release.
+- Use a species-neutral, hydration-focused product name as the collection grows.
 
 Acceptance: changing the artwork does not change hydration calculations, drink logging, history, goal handling, or the current day's progress.
 
